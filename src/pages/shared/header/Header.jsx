@@ -7,7 +7,7 @@ const Header = () => {
   return (
     <>
       {/* NAVBAR */}
-      <div className="fixed top-0 left-0 right-0 h-14 z-50 bg-base-100 border-b border-base-300 shadow-sm px-3 sm:px-6 flex items-center">
+      <div className="fixed top-0 left-0 right-0 h-14 z-50 bg-primary border-b border-info shadow-sm px-3 sm:px-6 flex items-center">
 
         {/* Left */}
         <div className="flex-1">
@@ -57,7 +57,7 @@ const Header = () => {
       {/* BACKDROP (IMPORTANT FIX) */}
       {menuOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          className="fixed inset-0 bg-primary/40 z-40 md:hidden"
           onClick={() => setMenuOpen(false)}
         />
       )}
@@ -66,7 +66,7 @@ const Header = () => {
       <div
         className={`
           fixed top-14 right-3 w-56
-          bg-base-100 border border-base-300
+          bg-primary border border-info
           rounded-xl shadow-lg z-50 md:hidden
           transform transition-all duration-200
           ${menuOpen ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"}

@@ -9,6 +9,7 @@ import {
   Code2,
   Image as ImageIcon
 } from "lucide-react";
+import QuickActionSidebar from "./QuickActionSidebar";
 
 const ChatCard = () => {
   const [messages, setMessages] = useState([
@@ -78,7 +79,7 @@ const ChatCard = () => {
   };
 
   return (
-    <div className="flex flex-col sm:flex-row min-h-dvh bg-black text-white overflow-y-auto">
+    <div className="flex flex-col sm:flex-row min-h-dvh bg-neutral text-white overflow-y-auto">
 
       {/* LEFT SIDEBAR */}
       <aside
@@ -87,11 +88,11 @@ const ChatCard = () => {
           w-full sm:w-20
           min-h-[120px] sm:min-h-dvh
           border-t sm:border-t-0 sm:border-r
-          border-neutral-800 bg-black
+          border-primary bg-neutral mt-8
         "
       >
-        <div className="flex sm:flex-col items-center justify-center sm:justify-start gap-4 py-4">
-          <button className="btn btn-ghost btn-circle text-white">
+        <div className="flex sm:flex-col items-center justify-center sm:justify-start gap-4 py-4 mt-5">
+          <button className="btn btn-ghost btn-circle text-info">
             <PanelLeft size={22} />
           </button>
         </div>
@@ -102,18 +103,17 @@ const ChatCard = () => {
 
         {/* CENTER AREA */}
         <div
-          className={`flex-1 overflow-y-auto px-3 sm:px-4 ${
-            messages.length === 1
+          className={`flex-1 overflow-y-auto px-1 sm:px-4 ${messages.length === 1
               ? "flex flex-col justify-center"
               : "py-6"
-          }`}
+            }`}
         >
           <div className="max-w-3xl mx-auto w-full space-y-6">
 
             {/* EMPTY STATE */}
             {messages.length === 1 && (
               <div className="flex flex-col items-center mb-6">
-                <h1 className="text-3xl sm:text-5xl font-semibold text-center mb-10">
+                <h1 className="text-3xl sm:text-5xl font-semibold text-center text-info mb-10">
                   Ready when you are.
                 </h1>
               </div>
@@ -123,16 +123,14 @@ const ChatCard = () => {
             {messages.map((msg, index) => (
               <div
                 key={index}
-                className={`flex ${
-                  msg.user ? "justify-end" : "justify-start"
-                }`}
+                className={`flex ${msg.user ? "justify-end" : "justify-start"
+                  }`}
               >
                 <div
-                  className={`max-w-[90%] sm:max-w-[75%] px-4 py-3 rounded-2xl text-sm ${
-                    msg.user
-                      ? "bg-neutral-800"
-                      : "bg-neutral-900 text-gray-200"
-                  }`}
+                  className={`max-w-[90%] sm:max-w-[75%] px-4 py-3 mt-10 rounded-2xl text-sm ${msg.user
+                      ? "bg-secondary text-zinc-900"
+                      : "bg-info text-black"
+                    }`}
                 >
                   {msg.audio ? (
                     <audio controls className="max-w-full">
@@ -148,14 +146,14 @@ const ChatCard = () => {
         </div>
 
         {/* INPUT AREA */}
-        <div className="w-full px-3 sm:px-4 pb-6">
+        <div className="w-full px-3 sm:px-4 pb-8 mb-8">
           <div className="max-w-3xl mx-auto">
-            <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2">
+            <div className="flex items-center bg-secondary border border-info rounded-full px-4 py-2">
 
               <input
                 type="text"
                 placeholder="Ask anything"
-                className="flex-1 bg-transparent outline-none px-2 text-white min-w-0"
+                className="flex-1 bg-transparent outline-none px-2 text-black min-w-0"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyPress}
@@ -163,18 +161,17 @@ const ChatCard = () => {
 
               <button
                 onClick={handleRecord}
-                className={`btn btn-circle btn-sm ${
-                  recording
+                className={`btn btn-circle btn-sm ${recording
                     ? "bg-red-500 text-white"
-                    : "bg-white text-black"
-                }`}
+                    : "bg-info text-zinc"
+                  }`}
               >
                 {recording ? <Square size={16} /> : <Mic size={18} />}
               </button>
 
               <button
                 onClick={sendMessage}
-                className="btn btn-circle btn-sm ml-2 bg-white text-black"
+                className="btn btn-circle btn-sm ml-2 bg-info text-zinc"
               >
                 <SendHorizontal size={16} />
               </button>
@@ -190,36 +187,10 @@ const ChatCard = () => {
           order-2 sm:order-3
           w-full sm:w-72
           border-t sm:border-t-0 sm:border-l
-          border-neutral-800 bg-black
+          border-primary bg-neutral mt-8
         "
       >
-        <div className="p-4">
-          <h2 className="text-lg font-semibold mb-5">
-            Quick Actions
-          </h2>
-
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-1 gap-3">
-            <button className="w-full flex items-center gap-3 p-4 rounded-2xl bg-neutral-900">
-              <Trophy size={22} />
-              Football
-            </button>
-
-            <button className="w-full flex items-center gap-3 p-4 rounded-2xl bg-neutral-900">
-              <Music2 size={22} />
-              Music
-            </button>
-
-            <button className="w-full flex items-center gap-3 p-4 rounded-2xl bg-neutral-900">
-              <Code2 size={22} />
-              Coding
-            </button>
-
-            <button className="w-full flex items-center gap-3 p-4 rounded-2xl bg-neutral-900">
-              <ImageIcon size={22} />
-              Images
-            </button>
-          </div>
-        </div>
+        <QuickActionSidebar></QuickActionSidebar>
       </aside>
     </div>
   );

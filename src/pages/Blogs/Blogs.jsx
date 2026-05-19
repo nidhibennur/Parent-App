@@ -142,7 +142,7 @@ const Blogs = () => {
 
   return (
 
-    <div className="min-h-screen bg-base-200 p-4 sm:p-6">
+    <div className="min-h-screen bg-base-200 p-4 sm:p-6 mt-10">
 
       {/* Header */}
       <div className="mb-8">
