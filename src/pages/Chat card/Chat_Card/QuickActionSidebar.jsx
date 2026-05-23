@@ -1,45 +1,47 @@
-import React from 'react';
-import {
-    Mic,
-    PanelLeft,
-    Square,
-    SendHorizontal,
-    Trophy,
-    Music2,
-    Code2,
-    Image as ImageIcon
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { QUICK_ACTIONS } from "../../../data/quickActions";
 
-const QuickActionSidebar = () => {
-    return (
-        <div className="p-4 mt-5">
-            <h2 className="text-lg text-info font-semibold mb-5">
-                Quick Actions
-            </h2>
+const QuickActionSidebar = ({ onQuickAction }) => {
+  const navigate = useNavigate();
 
-            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-1 gap-3">
-                <button className="w-full flex items-center gap-3 p-4 rounded-2xl text-zinc-900 bg-info">
-                    <Trophy size={22} />
-                    Football
-                </button>
+  const trigger = (action) => {
+    if (onQuickAction) {
+      onQuickAction(action);
+      return;
+    }
+    const params = new URLSearchParams({
+      prompt: action.prompt,
+      topic: action.id,
+    });
+    navigate(`/?${params.toString()}`);
+  };
 
-                <button className="w-full flex items-center gap-3 p-4 rounded-2xl text-zinc-900 bg-info">
-                    <Music2 size={22} />
-                    Music
-                </button>
-
-                <button className="w-full flex items-center gap-3 p-4 rounded-2xl text-zinc-900 bg-info">
-                    <Code2 size={22} />
-                    Coding
-                </button>
-
-                <button className="w-full flex items-center gap-3 p-4 rounded-2xl text-zinc-900 bg-info">
-                    <ImageIcon size={22} />
-                    Images
-                </button>
-            </div>
-        </div>
-    );
+  return (
+    <div className="gpt-right-panel-inner">
+      <h2 className="quick-panel-title">Quick help</h2>
+      <p className="quick-panel-sub">Instant AI support</p>
+      <div className="gpt-quick-actions">
+        {QUICK_ACTIONS.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            className="quick-action-btn"
+            onClick={() => trigger(action)}
+          >
+            <span>{action.emoji}</span>
+            {action.label}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="sos-button compact"
+        onClick={() => navigate("/emergency")}
+      >
+        SOS — need help now
+      </button>
+    </div>
+  );
 };
 
 export default QuickActionSidebar;

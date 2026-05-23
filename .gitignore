@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment variables — never commit these
+.env
+.env.local
+.env.*.local
+
+# Vite cache
+.vite/
+
+# Editor & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local test files
+*.local
+
+# Project files not needed in repo
+Parent_App_Detailed_Plan.pdf
+img.png

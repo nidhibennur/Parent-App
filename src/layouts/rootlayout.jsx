@@ -1,20 +1,41 @@
-import React from 'react';
-import { Outlet } from "react-router";
-import Footer from '../pages/shared/footer/footer';
-import Header from '../pages/shared/header/header';
-import Home from '../pages/home/home/Home';
-import QuickActionSidebar from '../pages/Chat card/Chat_Card/QuickActionSidebar';
-
+import { useEffect } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import Header from "../pages/shared/header/Header";
+import { useAuth } from "../context/AuthContext";
+import OnboardingModal from "../components/onboarding/OnboardingModal";
 
 const rootlayout = () => {
+  const { pathname } = useLocation();
+  const { isAuthenticated, loading, user } = useAuth();
+  const navigate = useNavigate();
+  const isChat = pathname === "/";
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigate("/login", { replace: true });
+    }
+  }, [loading, isAuthenticated, navigate]);
+
+  if (loading) {
     return (
-        <div>
-            <Header></Header>
-            <Outlet></Outlet>
-           
-            <Footer></Footer>
-        </div>
+      <div className="app-loading">
+        <div className="app-loading-icon"><img src="/logo.png" alt="" className="auth-mobile-logo-img" /></div>
+        <p>Loading…</p>
+      </div>
     );
+  }
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <div className={isChat ? "layout-chat-active" : ""}>
+      {user && !user.onboarded && <OnboardingModal />}
+      <Header />
+      <div className={isChat ? "chat-page-below-nav" : "app-page"}>
+        <Outlet />
+      </div>
+    </div>
+  );
 };
 
 export default rootlayout;
