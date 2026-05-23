@@ -5,6 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, List
 from motor.motor_asyncio import AsyncIOMotorClient
+import certifi
 from jose import JWTError, jwt
 import bcrypt as _bcrypt
 from datetime import datetime, timedelta
@@ -28,7 +29,7 @@ app.add_middleware(
 
 # ── MongoDB ───────────────────────────────────────────────────────────────────
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-mongo_client = AsyncIOMotorClient(MONGODB_URI)
+mongo_client = AsyncIOMotorClient(MONGODB_URI, tlsCAFile=certifi.where())
 db = mongo_client.parentapp
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
