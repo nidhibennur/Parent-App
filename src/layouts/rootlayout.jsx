@@ -19,8 +19,14 @@ const rootlayout = () => {
   if (loading) {
     return (
       <div className="app-loading">
-        <div className="app-loading-icon"><img src="/logo.png" alt="" className="auth-mobile-logo-img" /></div>
-        <p>Loading…</p>
+        <div className="app-loading-icon">
+          <img src="/logo.png" alt="ParentApp" />
+        </div>
+        <p className="app-loading-label">Parent App</p>
+        <p className="app-loading-sub">Getting everything ready…</p>
+        <div className="app-loading-bar-wrap">
+          <div className="app-loading-bar" />
+        </div>
       </div>
     );
   }
@@ -31,7 +37,7 @@ const rootlayout = () => {
     <div className={isChat ? "layout-chat-active" : ""}>
       {user && !user.onboarded && <OnboardingModal />}
       <Header />
-      <div className={isChat ? "chat-page-below-nav" : "app-page"}>
+      <div key={pathname} className={isChat ? "chat-page-below-nav" : "app-page"}>
         <Outlet />
       </div>
     </div>

@@ -4,8 +4,9 @@ import { useAuth } from "../../context/AuthContext";
 import { MILESTONE_GROUPS, AGE_RANGE_TO_GROUPS, AGE_EMOJIS, TYPE_COLORS } from "../../data/milestones";
 import { fetchMilestones, saveMilestones } from "../../utils/milestoneApi";
 
-function loadChecked() {
-  try { return JSON.parse(localStorage.getItem("milestones-v2") || "{}"); }
+function loadChecked(userKey) {
+  const key = userKey ? `milestones-v2_${userKey}` : "milestones-v2";
+  try { return JSON.parse(localStorage.getItem(key) || "{}"); }
   catch { return {}; }
 }
 
@@ -14,7 +15,7 @@ function getGroup(id) {
 }
 
 export default function Milestones() {
-  const { profile } = useAuth();
+  const { profile, userKey } = useAuth();
   const navigate = useNavigate();
   const children = profile?.children?.filter((c) => c.nickname?.trim() && c.ageRange) ?? [];
   const hasChildren = children.length > 0;
@@ -22,14 +23,14 @@ export default function Milestones() {
   const [activeChildIdx, setActiveChildIdx] = useState(0);
   const [activeSubGroup, setActiveSubGroup] = useState({});
   const [activeType, setActiveType] = useState("all");
-  const [checked, setChecked] = useState(loadChecked);
+  const [checked, setChecked] = useState(() => loadChecked(userKey));
 
   // Sync from MongoDB on mount (fall back to localStorage already loaded above)
   useEffect(() => {
     fetchMilestones().then((data) => {
       if (data && Object.keys(data.checked).length > 0) {
         setChecked(data.checked);
-        localStorage.setItem("milestones-v2", JSON.stringify(data.checked));
+        localStorage.setItem(userKey ? `milestones-v2_${userKey}` : "milestones-v2", JSON.stringify(data.checked));
       }
     });
   }, []);
@@ -57,7 +58,7 @@ export default function Milestones() {
     const key = `${keyPrefix}${id}`;
     setChecked((prev) => {
       const next = { ...prev, [key]: !prev[key] };
-      localStorage.setItem("milestones-v2", JSON.stringify(next));
+      localStorage.setItem(userKey ? `milestones-v2_${userKey}` : "milestones-v2", JSON.stringify(next));
       saveMilestones(next);
       return next;
     });

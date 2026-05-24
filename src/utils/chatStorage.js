@@ -1,4 +1,8 @@
-const STORAGE_KEY = "parentapp_chats";
+const BASE_KEY = "parentapp_chats";
+
+function storageKey(userKey) {
+  return userKey ? `${BASE_KEY}_${userKey}` : BASE_KEY;
+}
 
 export function createEmptyChat(topic = null) {
   return {
@@ -11,9 +15,9 @@ export function createEmptyChat(topic = null) {
   };
 }
 
-export function loadChatStore() {
+export function loadChatStore(userKey) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey(userKey));
     if (!raw) return { chats: [], activeId: null };
     const parsed = JSON.parse(raw);
     return {
@@ -25,9 +29,9 @@ export function loadChatStore() {
   }
 }
 
-export function saveChatStore(chats, activeId) {
+export function saveChatStore(chats, activeId, userKey) {
   localStorage.setItem(
-    STORAGE_KEY,
+    storageKey(userKey),
     JSON.stringify({ chats, activeId, savedAt: Date.now() })
   );
 }
@@ -38,4 +42,3 @@ export function deriveTitle(messages) {
   const t = firstUser.text.trim();
   return t.length > 36 ? `${t.slice(0, 36)}…` : t;
 }
-

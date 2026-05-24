@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Mic, SendHorizontal, Square, Bot } from "lucide-react";
+import { Mic, SendHorizontal, Square, Bot, Copy, Check } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { CHAT_SUGGESTIONS } from "../../../data/quickActions";
 import ChatSidebar from "../../../components/chat/ChatSidebar";
 import QuickActionSidebar from "./QuickActionSidebar";
@@ -13,8 +14,44 @@ import {
   deriveTitle,
 } from "../../../utils/chatStorage";
 
+function AssistantMessage({ msg, userInitial }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(msg.text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className={`gpt-row ${msg.user ? "gpt-row-user" : "gpt-row-assistant"}`}>
+      <div className="gpt-avatar">{msg.user ? userInitial : <Bot size={16} />}</div>
+      <div className={`gpt-bubble${msg.user ? "" : " gpt-bubble-assistant"}`}>
+        {msg.audio ? (
+          <audio controls className="gpt-audio">
+            <source src={msg.text} type="audio/webm" />
+          </audio>
+        ) : msg.user ? (
+          <p>{msg.text}</p>
+        ) : (
+          <>
+            <div className="gpt-markdown">
+              <ReactMarkdown>{msg.text}</ReactMarkdown>
+            </div>
+            <button type="button" className="gpt-copy-btn" onClick={copy} aria-label="Copy response">
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ChatCard = () => {
-  const { profile } = useAuth();
+  const { profile, userKey } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPrompt = searchParams.get("prompt");
   const topic = searchParams.get("topic");
@@ -26,11 +63,13 @@ const ChatCard = () => {
   const [recording, setRecording] = useState(false);
   const [typing, setTyping] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [lastFailedText, setLastFailedText] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const seededRef = useRef(false);
   const pendingSendRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const activeChat = chats.find((c) => c.id === activeId);
   const messages = activeChat?.messages ?? [];
@@ -38,8 +77,8 @@ const ChatCard = () => {
   const persist = useCallback((nextChats, nextActiveId) => {
     setChats(nextChats);
     setActiveId(nextActiveId);
-    saveChatStore(nextChats, nextActiveId);
-  }, []);
+    saveChatStore(nextChats, nextActiveId, userKey);
+  }, [userKey]);
 
   const updateActiveMessages = useCallback(
     (updater) => {
@@ -48,13 +87,15 @@ const ChatCard = () => {
         const next = prev.map((c) => {
           if (c.id !== activeId) return c;
           const msgs = typeof updater === "function" ? updater(c.messages) : updater;
-          return { ...c, messages: msgs, title: deriveTitle(msgs), updatedAt: Date.now() };
+          // Only derive title if it hasn't been set by AI yet (still default)
+          const title = c.title === "New chat" ? deriveTitle(msgs) : c.title;
+          return { ...c, messages: msgs, title, updatedAt: Date.now() };
         });
-        saveChatStore(next, activeId);
+        saveChatStore(next, activeId, userKey);
         return next;
       });
     },
-    [activeId]
+    [activeId, userKey]
   );
 
   // Load chats from MongoDB on mount, fall back to localStorage
@@ -66,7 +107,7 @@ const ChatCard = () => {
       let mongoChats = [];
       try { mongoChats = await fetchChats(); } catch { /* offline, use localStorage */ }
 
-      const localStore = loadChatStore();
+      const localStore = loadChatStore(userKey);
       const baseChats = mongoChats.length > 0 ? mongoChats : localStore.chats;
 
       if (initialPrompt) {
@@ -111,6 +152,7 @@ const ChatCard = () => {
 
     addMessage(text.trim(), true);
     setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setTyping(true);
 
     const history = prevMessages
@@ -152,10 +194,35 @@ const ChatCard = () => {
         addMessage(accumulated, false);
         setStreamingText("");
 
-        // Sync full updated chat to MongoDB
         const aiMsg = { text: accumulated, user: false, audio: false };
         const updatedMessages = [...prevMessages, userMsg, aiMsg];
-        const title = deriveTitle(updatedMessages);
+
+        // Generate AI title only on the first exchange (prev had no user messages)
+        const isFirstMessage = !prevMessages.some((m) => m.user);
+        let title = deriveTitle(updatedMessages);
+        if (isFirstMessage) {
+          try {
+            const tr = await fetch("http://localhost:4000/api/chat-title", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: text.trim(), reply: accumulated }),
+            });
+            if (tr.ok) {
+              const { title: aiTitle } = await tr.json();
+              if (aiTitle) title = aiTitle;
+            }
+          } catch { /* keep deriveTitle fallback */ }
+        }
+
+        // Update title in state + localStorage using fresh prev state (avoids stale closure)
+        setChats((prev) => {
+          const next = prev.map((c) =>
+            c.id === activeId ? { ...c, title, updatedAt: Date.now() } : c
+          );
+          saveChatStore(next, activeId);
+          return next;
+        });
+
         saveChat({
           id: activeId,
           title,
@@ -168,7 +235,7 @@ const ChatCard = () => {
     } catch {
       setTyping(false);
       setStreamingText("");
-      addMessage("Couldn't reach the server. Make sure the backend is running.", false);
+      setLastFailedText(text.trim());
     }
   };
 
@@ -299,21 +366,11 @@ const ChatCard = () => {
           ) : (
             <div className="gpt-thread">
               {messages.map((msg, index) => (
-                <div
+                <AssistantMessage
                   key={index}
-                  className={`gpt-row ${msg.user ? "gpt-row-user" : "gpt-row-assistant"}`}
-                >
-                  <div className="gpt-avatar">{msg.user ? userInitial : <Bot size={16} />}</div>
-                  <div className="gpt-bubble">
-                    {msg.audio ? (
-                      <audio controls className="gpt-audio">
-                        <source src={msg.text} type="audio/webm" />
-                      </audio>
-                    ) : (
-                      <p>{msg.text}</p>
-                    )}
-                  </div>
-                </div>
+                  msg={msg}
+                  userInitial={userInitial}
+                />
               ))}
               {typing && (
                 <div className="gpt-row gpt-row-assistant">
@@ -326,7 +383,11 @@ const ChatCard = () => {
               {streamingText && (
                 <div className="gpt-row gpt-row-assistant">
                   <div className="gpt-avatar"><Bot size={16} /></div>
-                  <div className="gpt-bubble"><p>{streamingText}</p></div>
+                  <div className="gpt-bubble gpt-bubble-assistant">
+                    <div className="gpt-markdown">
+                      <ReactMarkdown>{streamingText}</ReactMarkdown>
+                    </div>
+                  </div>
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -334,13 +395,37 @@ const ChatCard = () => {
           )}
         </div>
 
+        {lastFailedText && (
+          <div className="offline-banner">
+            <span>⚠️ Couldn&apos;t reach the server.</span>
+            <button
+              type="button"
+              className="offline-retry"
+              onClick={() => { setLastFailedText(null); sendText(lastFailedText); }}
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              className="offline-dismiss"
+              onClick={() => setLastFailedText(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         <div className="gpt-composer-wrap">
           <div className="gpt-composer">
             <textarea
+              ref={textareaRef}
               rows={1}
               placeholder="Message Parent App…"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${e.target.scrollHeight}px`;
+              }}
               onKeyDown={handleKeyDown}
             />
             <div className="gpt-composer-actions">

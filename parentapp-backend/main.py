@@ -182,6 +182,11 @@ class ChatRequest(BaseModel):
     profile: Optional[ProfileData] = None
 
 
+class ChatTitleRequest(BaseModel):
+    message: str
+    reply: Optional[str] = None
+
+
 class MoodRequest(BaseModel):
     mood_id: str
     mood_label: str
@@ -193,10 +198,21 @@ class TipsRequest(BaseModel):
     profile: Optional[ProfileData] = None
 
 
+class TipOfDayRequest(BaseModel):
+    profile: Optional[ProfileData] = None
+
+
 class TopicQARequest(BaseModel):
     topic_title: str
     topic_summary: str
     question: str
+    profile: Optional[ProfileData] = None
+
+
+class TopicContentRequest(BaseModel):
+    topic_id: str
+    topic_title: str
+    topic_summary: str
     profile: Optional[ProfileData] = None
 
 
@@ -297,7 +313,7 @@ async def register(req: RegisterRequest):
         "onboarded": False,
         "createdAt": datetime.utcnow(),
     })
-    return {"token": create_token(str(result.inserted_id)), "onboarded": False}
+    return {"token": create_token(str(result.inserted_id)), "id": str(result.inserted_id), "onboarded": False}
 
 
 @app.post("/api/auth/login")
@@ -309,6 +325,7 @@ async def login(req: LoginRequest):
     profile = {k: user.get(k) for k in ["name", "role", "firstTime", "children", "challenges", "style"]}
     return {
         "token": create_token(str(user["_id"])),
+        "id": str(user["_id"]),
         "onboarded": bool(user.get("onboarded")),
         "profile": profile,
         "email": user["email"],
@@ -320,6 +337,7 @@ async def me(user=Depends(get_current_user)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return {
+        "id": str(user["_id"]),
         "email": user.get("email"),
         "onboarded": bool(user.get("onboarded")),
         **{k: user.get(k) for k in ["name", "role", "firstTime", "children", "challenges", "style"]},
@@ -367,6 +385,47 @@ async def chat(req: ChatRequest):
                         yield f"{line}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ── Chat title ───────────────────────────────────────────────────────────────
+@app.post("/api/chat-title")
+async def chat_title(req: ChatTitleRequest):
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key not configured")
+
+    context = f"Parent's message: {req.message[:300]}"
+    if req.reply:
+        context += f"\nAI reply (first 200 chars): {req.reply[:200]}"
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "openai/gpt-oss-120b:free",
+                "stream": False,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You create short, descriptive chat titles for a parenting support app. "
+                            "Given a parent's message and the AI's reply, write a title that describes the TOPIC being discussed — "
+                            "not a rephrasing or capitalisation of the question itself. "
+                            "Examples: 'Toddler Sleep Regression Help', 'Managing Mealtime Tantrums', 'Baby Milestone Concerns'. "
+                            "Return ONLY the title — 3 to 5 words, title case, no punctuation, no quotes."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": context,
+                    },
+                ],
+            },
+        )
+    resp.raise_for_status()
+    title = resp.json()["choices"][0]["message"]["content"].strip().strip('"').strip("'")
+    return {"title": title}
 
 
 # ── Mood advice ───────────────────────────────────────────────────────────────
@@ -456,6 +515,45 @@ async def generate_tips(req: TipsRequest):
     return {"tips": []}
 
 
+@app.post("/api/tip-of-day")
+async def tip_of_day(req: TipOfDayRequest):
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key not configured")
+
+    from datetime import date
+    today = date.today().isoformat()
+    profile = req.profile.model_dump() if req.profile else None
+
+    user_message = (
+        f"Today is {today}. Generate exactly ONE practical, specific parenting tip for today. "
+        "Return ONLY a JSON object — no extra text, no markdown fences. Format:\n"
+        '{"emoji":"🧘","title":"Short title (5 words max)","body":"2-3 sentence actionable tip."}'
+    )
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "openai/gpt-oss-120b:free",
+                "messages": [
+                    {"role": "system", "content": get_system_prompt(profile)},
+                    {"role": "user", "content": user_message},
+                ],
+            },
+        )
+
+    raw = response.json()["choices"][0]["message"]["content"].strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+    try:
+        return json_lib.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=500, detail="AI returned invalid JSON")
+
+
 # ── Mood log ─────────────────────────────────────────────────────────────────
 @app.post("/api/mood-log")
 async def add_mood_log(entry: MoodLogEntry, user=Depends(get_current_user)):
@@ -463,6 +561,8 @@ async def add_mood_log(entry: MoodLogEntry, user=Depends(get_current_user)):
         raise HTTPException(status_code=401, detail="Not authenticated")
     await db.mood_logs.insert_one({
         "userId": user["_id"],
+        "userName": user.get("name"),
+        "userEmail": user.get("email"),
         "moodId": entry.moodId,
         "date": entry.date,
     })
@@ -497,7 +597,12 @@ async def save_milestones(state: MilestoneState, user=Depends(get_current_user))
         raise HTTPException(status_code=401, detail="Not authenticated")
     await db.milestones.update_one(
         {"userId": user["_id"]},
-        {"$set": {"checked": state.checked, "updatedAt": datetime.utcnow()}},
+        {"$set": {
+            "checked": state.checked,
+            "userName": user.get("name"),
+            "userEmail": user.get("email"),
+            "updatedAt": datetime.utcnow(),
+        }},
         upsert=True,
     )
     return {"ok": True}
@@ -536,6 +641,55 @@ async def calm_prompt(req: CalmPromptRequest):
     data = response.json()
     text = data["choices"][0]["message"]["content"].strip().strip('"').strip("'")
     return {"prompt": text}
+
+
+# ── Topic content (AI-generated) ─────────────────────────────────────────────
+@app.post("/api/topic-content")
+async def topic_content(req: TopicContentRequest):
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key not configured")
+
+    profile = req.profile.model_dump() if req.profile else None
+    prompt = (
+        f"You are a child development expert writing a parenting guide section.\n"
+        f"Topic: \"{req.topic_title}\"\n"
+        f"Summary: {req.topic_summary}\n\n"
+        f"Return ONLY a valid JSON object with these exact keys:\n"
+        f"- overview: a 2-3 sentence plain-text intro (no markdown)\n"
+        f"- steps: array of 4-5 short action strings (no markdown, plain text)\n"
+        f"- dos: array of 3-4 short do-strings (plain text, start with a verb)\n"
+        f"- donts: array of 3-4 short don't-strings (plain text, start with a verb)\n"
+        f"- keyTakeaway: one short sentence summarising the most important insight\n\n"
+        f"Do not wrap in markdown fences. Output raw JSON only."
+    )
+    if profile:
+        prompt += f"\n\nParent profile: {json_lib.dumps(profile)}"
+
+    payload = {
+        "model": "openai/gpt-oss-120b:free",
+        "stream": False,
+        "messages": [
+            {"role": "system", "content": "You are a helpful child development expert. Always respond with valid JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+    }
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+        try:
+            return json_lib.loads(raw)
+        except Exception:
+            raise HTTPException(status_code=500, detail="AI returned invalid JSON")
 
 
 # ── Topic Q&A ─────────────────────────────────────────────────────────────────

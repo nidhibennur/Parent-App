@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { QUICK_ACTIONS } from "../../data/quickActions";
 import { useAuth } from "../../context/AuthContext";
-import { saveMoodEntry } from "../../utils/moodApi";
+import { saveMoodEntry, fetchMoodLog } from "../../utils/moodApi";
 
 const MOODS = [
   {
@@ -53,12 +55,13 @@ const MOODS = [
   },
 ];
 
-function saveLog(moodId) {
+function saveLog(moodId, userKey) {
+  const storageKey = userKey ? `mood-log_${userKey}` : "mood-log";
   const date = new Date().toISOString();
   try {
-    const logs = JSON.parse(localStorage.getItem("mood-log") || "[]");
+    const logs = JSON.parse(localStorage.getItem(storageKey) || "[]");
     logs.unshift({ moodId, date });
-    localStorage.setItem("mood-log", JSON.stringify(logs.slice(0, 30)));
+    localStorage.setItem(storageKey, JSON.stringify(logs.slice(0, 30)));
   } catch { /* noop */ }
   saveMoodEntry(moodId, date);
 }
@@ -98,29 +101,62 @@ async function streamMoodAdvice(mood, profile, onToken, onDone, onError) {
   }
 }
 
+const MOOD_SCORE = { great: 5, okay: 4, stressed: 3, overwhelmed: 2, crisis: 1 };
+const MOOD_COLOR = { great: "#2d6349", okay: "#1a6b82", stressed: "#a05a1a", overwhelmed: "#5c3d8a", crisis: "#a82d38" };
+
+function buildWeekData(logs) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return { label: d.toLocaleDateString("en", { weekday: "short" }), dateStr: d.toISOString().slice(0, 10), scores: [] };
+  });
+  logs.forEach(({ moodId, date }) => {
+    const ds = new Date(date).toISOString().slice(0, 10);
+    const day = days.find((d) => d.dateStr === ds);
+    if (day && MOOD_SCORE[moodId]) day.scores.push(MOOD_SCORE[moodId]);
+  });
+  return days.map((d) => ({
+    label: d.label,
+    score: d.scores.length ? Math.round(d.scores.reduce((a, b) => a + b, 0) / d.scores.length * 10) / 10 : null,
+    fill: d.scores.length ? Object.entries(MOOD_SCORE).find(([, v]) => v === Math.round(d.scores.reduce((a, b) => a + b, 0) / d.scores.length))?.[0] : null,
+  }));
+}
+
 export default function MoodCheckin() {
-  const { profile } = useAuth();
+  const { profile, userKey } = useAuth();
   const navigate = useNavigate();
   const [selected, setSelected] = useState(null);
   const [advice, setAdvice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState(false);
+  const [weekData, setWeekData] = useState([]);
+
+  useEffect(() => {
+    fetchMoodLog().then((logs) => {
+      if (logs.length) setWeekData(buildWeekData(logs));
+      else {
+        try {
+          const local = JSON.parse(localStorage.getItem(userKey ? `mood-log_${userKey}` : "mood-log") || "[]");
+          if (local.length) setWeekData(buildWeekData(local));
+        } catch { /* noop */ }
+      }
+    });
+  }, []);
 
   function pick(mood) {
     if (selected?.id === mood.id) return;
     setSelected(mood);
     setAdvice("");
+    setServerError(false);
     setLoading(true);
-    saveLog(mood.id);
+    saveLog(mood.id, userKey);
 
     streamMoodAdvice(
       mood,
       profile,
       (text) => { setAdvice(text); setLoading(false); },
       () => setLoading(false),
-      () => {
-        setLoading(false);
-        setAdvice("Couldn't reach the server. Make sure the backend is running.");
-      }
+      () => { setLoading(false); setServerError(true); }
     );
   }
 
@@ -161,8 +197,15 @@ export default function MoodCheckin() {
               <div className="mood-ai-loading">
                 <span /><span /><span />
               </div>
+            ) : serverError ? (
+              <div className="offline-banner">
+                <span>⚠️ Couldn&apos;t reach the server.</span>
+                <button type="button" className="offline-retry" onClick={() => pick(selected)}>Retry</button>
+              </div>
             ) : (
-              <p className="mood-result-text">{advice}</p>
+              <div className="mood-result-text gpt-markdown">
+                <ReactMarkdown>{advice}</ReactMarkdown>
+              </div>
             )}
             {!loading && (
               <div className="mood-result-links">
@@ -184,6 +227,28 @@ export default function MoodCheckin() {
               </div>
             )}
           </div>
+        </section>
+      )}
+
+      {weekData.some((d) => d.score !== null) && (
+        <section className="mood-chart-section">
+          <h3 className="mood-chart-title">Your week at a glance</h3>
+          <p className="mood-chart-sub">Average mood score per day (5 = great, 1 = crisis)</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={weekData} barCategoryGap="30%">
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 5]} hide />
+              <Tooltip
+                formatter={(val) => [`${val} / 5`, "Mood"]}
+                contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: "0.82rem" }}
+              />
+              <Bar dataKey="score" radius={[6, 6, 0, 0]}>
+                {weekData.map((d, i) => (
+                  <Cell key={i} fill={d.fill ? MOOD_COLOR[d.fill] : "var(--border)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </section>
       )}
 

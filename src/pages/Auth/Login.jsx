@@ -9,19 +9,42 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [userName, setUserName] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await login(email.trim(), password);
-      navigate("/", { replace: true });
+      const data = await login(email.trim(), password);
+      setUserName(data?.profile?.name || data?.name || "");
+      setSuccess(true);
+      setTimeout(() => navigate("/", { replace: true }), 1800);
     } catch (err) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
+  }
+
+  if (success) {
+    return (
+      <div className="login-success-overlay">
+        <div className="login-success-card">
+          <div className="login-success-logo">
+            <img src="/logo.png" alt="ParentApp" />
+          </div>
+          <div className="login-success-check">✓</div>
+          <h2 className="login-success-title">
+            {userName ? `Welcome back, ${userName}!` : "Welcome back!"}
+          </h2>
+          <p className="login-success-sub">Taking you home…</p>
+          <div className="login-success-dots">
+            <span /><span /><span />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

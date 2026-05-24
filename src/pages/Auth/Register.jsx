@@ -10,6 +10,7 @@ export default function Register() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -19,12 +20,30 @@ export default function Register() {
     setLoading(true);
     try {
       await register(email.trim(), password);
-      navigate("/", { replace: true });
+      setSuccess(true);
+      setTimeout(() => navigate("/", { replace: true }), 1800);
     } catch (err) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
+  }
+
+  if (success) {
+    return (
+      <div className="login-success-overlay">
+        <div className="login-success-card">
+          <div className="login-success-logo">
+            <img src="/logo.png" alt="ParentApp" />
+          </div>
+          <div className="login-success-check">✓</div>
+          <h2 className="login-success-title">Account created!</h2>
+          <p className="login-success-sub">Setting up your space…</p>
+          <div className="login-success-dots">
+            <span /><span /><span />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -4,6 +4,9 @@ const AuthContext = createContext(null);
 
 const TOKEN_KEY = "parentapp-token";
 
+// All localStorage keys the app uses (for cleanup on login/logout)
+const USER_SCOPED_KEYS = ["parentapp_chats", "mood-log", "milestones-v2", "saved-tips", "tip-of-day"];
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
@@ -40,7 +43,7 @@ export function AuthProvider({ children }) {
     if (!res.ok) throw new Error(data.detail || "Registration failed");
     localStorage.setItem(TOKEN_KEY, data.token);
     setToken(data.token);
-    setUser({ email, onboarded: false });
+    setUser({ email, id: data.id, onboarded: false });
     return data;
   }, []);
 
@@ -52,9 +55,10 @@ export function AuthProvider({ children }) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Login failed");
+    USER_SCOPED_KEYS.forEach((k) => localStorage.removeItem(k));
     localStorage.setItem(TOKEN_KEY, data.token);
     setToken(data.token);
-    setUser({ email: data.email, onboarded: data.onboarded, ...data.profile });
+    setUser({ email: data.email, id: data.id, onboarded: data.onboarded, ...data.profile });
     return data;
   }, []);
 
@@ -72,10 +76,13 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const logout = useCallback(() => {
+    if (user?.id) {
+      USER_SCOPED_KEYS.forEach((k) => localStorage.removeItem(`${k}_${user.id}`));
+    }
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
-  }, []);
+  }, [user]);
 
   const profile = user
     ? {
@@ -88,12 +95,15 @@ export function AuthProvider({ children }) {
       }
     : null;
 
+  const userKey = user?.id ?? null;
+
   return (
     <AuthContext.Provider
       value={{
         token,
         user,
         profile,
+        userKey,
         loading,
         isAuthenticated: !!user,
         register,
