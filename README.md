@@ -14,7 +14,6 @@ A parenting support web app built as part of a project at OTH Amberg-Weiden. It 
 - **Learning Hub** — Curated articles and in-app Q&A per topic
 - **Emergency Page** — Grounding steps, breathing animation, and crisis resources
 - **Profile** — Stores name, role, children (nickname + age range), challenges, and preferred response style
-- **Dark mode** — Toggle in profile, persisted across sessions
 
 ---
 
@@ -23,7 +22,7 @@ A parenting support web app built as part of a project at OTH Amberg-Weiden. It 
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, Vite, React Router v7 |
-| Styling | Custom CSS (no component library) |
+| Styling | Custom CSS |
 | Backend | Python, FastAPI, Uvicorn |
 | Database | MongoDB Atlas (via Motor async driver) |
 | AI | OpenRouter API (GPT model) |
@@ -34,22 +33,45 @@ A parenting support web app built as part of a project at OTH Amberg-Weiden. It 
 ## Project Structure
 
 ```
-parentApp/               ← Frontend (React + Vite)
-├── public/
-│   └── logo.png
-├── src/
-│   ├── components/      ← Shared components (chat sidebar, onboarding modal, etc.)
-│   ├── context/         ← AuthContext (global auth + profile state)
-│   ├── data/            ← Static data (milestones, mood levels, quick actions)
-│   ├── layouts/         ← Root layout with auth guard
-│   ├── pages/           ← One folder per page/route
-│   ├── routes/          ← React Router config
-│   └── utils/           ← API helpers (chatApi, moodApi, milestoneApi)
+parentApp/
+├── parentapp-frontend/          ← React + Vite
+│   ├── public/
+│   ├── index.html
+│   └── src/
+│       ├── components/
+│       │   ├── calm/            ← BreathingAnimation, CalmTimer
+│       │   ├── chat/            ← ChatSidebar
+│       │   ├── layout/          ← Header, Footer
+│       │   └── onboarding/      ← OnboardingModal
+│       ├── context/             ← AuthContext (global auth + profile state)
+│       ├── data/                ← Static data (milestones, tips, quick actions)
+│       ├── layouts/             ← RootLayout with auth guard
+│       ├── pages/               ← One folder per route
+│       ├── routes/              ← React Router config
+│       └── utils/               ← API helpers and localStorage utilities
 │
-parentapp-backend/       ← Backend (FastAPI)
-├── main.py              ← All routes and business logic
-├── requirements.txt
-└── .env                 ← Not committed — see Environment Variables
+├── parentapp-backend/           ← FastAPI
+│   ├── main.py                  ← App entry point
+│   ├── requirements.txt
+│   ├── .env                     ← Not committed — see Environment Variables
+│   └── app/
+│       ├── config.py            ← Env vars and constants
+│       ├── database.py          ← MongoDB client
+│       ├── dependencies.py      ← JWT auth / get_current_user
+│       ├── prompts.py           ← AI system prompt and profile context builder
+│       ├── schemas.py           ← Pydantic models
+│       ├── services/
+│       │   └── ai.py            ← OpenRouter HTTP helpers (stream + get)
+│       └── routers/
+│           ├── auth.py          ← /api/auth/*
+│           ├── chat.py          ← /api/chat, /api/chats
+│           ├── mood.py          ← /api/mood-*
+│           ├── milestones.py    ← /api/milestones
+│           ├── tips.py          ← /api/tips, /api/tip-of-day
+│           ├── calm.py          ← /api/calm-prompt
+│           └── learning.py      ← /api/topic-*
+│
+└── .gitignore
 ```
 
 ---
@@ -91,7 +113,7 @@ The backend runs at `http://localhost:4000`.
 ### Frontend
 
 ```bash
-cd parentApp
+cd parentapp-frontend
 
 # Install dependencies
 npm install
@@ -131,6 +153,10 @@ JWT_SECRET=your-long-random-secret-here
 | GET | `/api/auth/me` | Get current user profile |
 | PUT | `/api/auth/profile` | Update user profile |
 | POST | `/api/chat` | Streaming AI chat |
+| POST | `/api/chat-title` | Generate a title for a chat |
+| GET | `/api/chats` | Get all saved chats |
+| POST | `/api/chats` | Save or update a chat |
+| DELETE | `/api/chats/{id}` | Delete a chat |
 | POST | `/api/mood-advice` | Streaming mood-based AI advice |
 | GET | `/api/mood-log` | Get mood history (last 30) |
 | POST | `/api/mood-log` | Save a mood check-in |
@@ -138,17 +164,17 @@ JWT_SECRET=your-long-random-secret-here
 | PUT | `/api/milestones` | Save milestone checked state |
 | POST | `/api/calm-prompt` | Generate an AI grounding prompt |
 | POST | `/api/tips` | Generate age-filtered parenting tips |
-| POST | `/api/topic-qa` | Q&A on a learning topic |
-| GET | `/api/chats` | Get all saved chats |
-| POST | `/api/chats` | Save or update a chat |
-| DELETE | `/api/chats/{id}` | Delete a chat |
+| POST | `/api/tip-of-day` | Generate today's tip |
+| POST | `/api/topic-content` | Generate full content for a learning topic |
+| POST | `/api/topic-qa` | Streaming Q&A on a learning topic |
+| GET | `/api/health` | Health check |
 
 ---
 
 ## Deployment
 
 - **Backend** — Deploy to [Render](https://render.com) as a Python web service. Set environment variables in the Render dashboard.
-- **Frontend** — Deploy to [Vercel](https://vercel.com). Update the API base URL in the frontend utils from `localhost:4000` to your Render service URL.
+- **Frontend** — Deploy to [Vercel](https://vercel.com). Update the API base URL in `src/utils/` from `localhost:4000` to your Render service URL.
 
 ---
 
