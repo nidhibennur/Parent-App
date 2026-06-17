@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { QUICK_ACTIONS } from "../../data/quickActions";
 import { useAuth } from "../../context/AuthContext";
@@ -13,6 +12,7 @@ const MOODS = [
     label: "Feeling good",
     color: "#d4e9d9",
     accent: "#2d6349",
+    advice: "Love this. Take a second to notice what's going right today — a calm morning, a good night's sleep, a small win with your child. Banking these moments helps you remember them on the harder days.",
     links: [],
   },
   {
@@ -21,6 +21,7 @@ const MOODS = [
     label: "Okay, managing",
     color: "#dceefa",
     accent: "#1a6b82",
+    advice: "Steady is good. You're holding things together, which is its own kind of strength. If you've got a spare minute, a short breathing exercise can help keep that balance through the rest of the day.",
     links: [{ label: "Try box breathing →", to: "/calm-tools" }],
   },
   {
@@ -29,6 +30,7 @@ const MOODS = [
     label: "A bit stressed",
     color: "#fde8d0",
     accent: "#a05a1a",
+    advice: "That tightness you're feeling is real, and it's okay to name it. Try stepping away for 30 seconds before responding to whatever's pulling at you — your child needs your calm, not your perfection. A quick reset or a tip might help right now.",
     links: [
       { label: "Calm Tools →", to: "/calm-tools" },
       { label: "Browse tips →", to: "/tips" },
@@ -40,6 +42,7 @@ const MOODS = [
     label: "Overwhelmed",
     color: "#ede5f6",
     accent: "#5c3d8a",
+    advice: "Overwhelmed means you're carrying a lot, not that you're failing. Give yourself permission to pause — even just stepping into another room for a few breaths counts. You've gotten through hard moments before, and this one will pass too.",
     links: [
       { label: "30-second reset →", to: "/calm-tools" },
       { label: "Talk to AI →", to: `/?${new URLSearchParams({ prompt: QUICK_ACTIONS[1].prompt, topic: "overwhelmed" })}` },
@@ -51,6 +54,7 @@ const MOODS = [
     label: "In crisis",
     color: "#fde6e7",
     accent: "#a82d38",
+    advice: "If you or your child are in immediate danger, please call emergency services now. Otherwise, the Emergency page has grounding steps and crisis resources to help you through this moment — you don't have to handle it alone.",
     links: [{ label: "Go to Emergency page →", to: "/emergency" }],
   },
 ];
@@ -64,41 +68,6 @@ function saveLog(moodId, userKey) {
     localStorage.setItem(storageKey, JSON.stringify(logs.slice(0, 30)));
   } catch { /* noop */ }
   saveMoodEntry(moodId, date);
-}
-
-async function streamMoodAdvice(mood, profile, onToken, onDone, onError) {
-  try {
-    const res = await fetch("http://localhost:4000/api/mood-advice", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mood_id: mood.id, mood_label: mood.label, profile }),
-    });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let accumulated = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        const raw = line.slice(6).trim();
-        if (raw === "[DONE]") break;
-        try {
-          const token = JSON.parse(raw).choices?.[0]?.delta?.content ?? "";
-          if (token) {
-            accumulated += token;
-            onToken(accumulated);
-          }
-        } catch { /* incomplete chunk */ }
-      }
-    }
-    onDone();
-  } catch {
-    onError();
-  }
 }
 
 const MOOD_SCORE = { great: 5, okay: 4, stressed: 3, overwhelmed: 2, crisis: 1 };
@@ -123,12 +92,9 @@ function buildWeekData(logs) {
 }
 
 export default function MoodCheckin() {
-  const { profile, userKey } = useAuth();
+  const { userKey } = useAuth();
   const navigate = useNavigate();
   const [selected, setSelected] = useState(null);
-  const [advice, setAdvice] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [serverError, setServerError] = useState(false);
   const [weekData, setWeekData] = useState([]);
 
   useEffect(() => {
@@ -146,18 +112,7 @@ export default function MoodCheckin() {
   function pick(mood) {
     if (selected?.id === mood.id) return;
     setSelected(mood);
-    setAdvice("");
-    setServerError(false);
-    setLoading(true);
     saveLog(mood.id, userKey);
-
-    streamMoodAdvice(
-      mood,
-      profile,
-      (text) => { setAdvice(text); setLoading(false); },
-      () => setLoading(false),
-      () => { setLoading(false); setServerError(true); }
-    );
   }
 
   return (
@@ -193,39 +148,26 @@ export default function MoodCheckin() {
             </div>
           </div>
           <div className="mood-result-body">
-            {loading ? (
-              <div className="mood-ai-loading">
-                <span /><span /><span />
-              </div>
-            ) : serverError ? (
-              <div className="offline-banner">
-                <span>⚠️ Couldn&apos;t reach the server.</span>
-                <button type="button" className="offline-retry" onClick={() => pick(selected)}>Retry</button>
-              </div>
-            ) : (
-              <div className="mood-result-text gpt-markdown">
-                <ReactMarkdown>{advice}</ReactMarkdown>
-              </div>
-            )}
-            {!loading && (
-              <div className="mood-result-links">
-                {selected.links.map((l) => (
-                  <Link key={l.to} to={l.to} className="btn-primary">
-                    {l.label}
-                  </Link>
-                ))}
-                <button
-                  type="button"
-                  className="btn-secondary mood-chat-btn"
-                  onClick={() => {
-                    const prompt = `I just checked in and I'm feeling "${selected.label}".${advice ? ` Here's the advice I got: "${advice.slice(0, 300)}".` : ""} I'd like to talk more about this and get some support.`;
-                    navigate(`/?prompt=${encodeURIComponent(prompt)}&topic=mood-${selected.id}`);
-                  }}
-                >
-                  💬 Talk more about this
-                </button>
-              </div>
-            )}
+            <div className="mood-result-text">
+              <p>{selected.advice}</p>
+            </div>
+            <div className="mood-result-links">
+              {selected.links.map((l) => (
+                <Link key={l.to} to={l.to} className="btn-primary">
+                  {l.label}
+                </Link>
+              ))}
+              <button
+                type="button"
+                className="btn-secondary mood-chat-btn"
+                onClick={() => {
+                  const prompt = `I just checked in and I'm feeling "${selected.label}". I'd like to talk more about this and get some support.`;
+                  navigate(`/?prompt=${encodeURIComponent(prompt)}&topic=mood-${selected.id}`);
+                }}
+              >
+                💬 Talk more about this
+              </button>
+            </div>
           </div>
         </section>
       )}

@@ -1,58 +1,20 @@
-import { useState, useEffect } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { getTopicById } from "../../data/learningTopics";
 import { useAuth } from "../../context/AuthContext";
 
-async function fetchTopicContent(topic, profile) {
-  const res = await fetch("http://localhost:4000/api/topic-content", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      topic_id: topic.id,
-      topic_title: topic.title,
-      topic_summary: topic.summary,
-      profile,
-    }),
-  });
-  if (!res.ok) throw new Error("server error");
-  return res.json();
-}
-
-function Skeleton({ className = "" }) {
-  return <div className={`topic-skeleton ${className}`} />;
-}
-
 export default function TopicDetail() {
   const { profile } = useAuth();
   const { topicId } = useParams();
-  const navigate = useNavigate();
   const topic = getTopicById(topicId);
 
-  const [content, setContent] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const content = topic
+    ? { overview: topic.summary, steps: topic.steps, dos: topic.dos, donts: topic.donts, keyTakeaway: null }
+    : null;
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [qaLoading, setQaLoading] = useState(false);
-
-  useEffect(() => {
-    if (!topic) return;
-    setLoading(true);
-    setContent(null);
-    fetchTopicContent(topic, profile)
-      .then(setContent)
-      .catch(() => {
-        // Fall back to static data
-        setContent({
-          overview: topic.summary,
-          steps: topic.steps,
-          dos: topic.dos,
-          donts: topic.donts,
-          keyTakeaway: null,
-        });
-      })
-      .finally(() => setLoading(false));
-  }, [topicId]);
 
   if (!topic) {
     return (
@@ -121,80 +83,49 @@ export default function TopicDetail() {
         <div>
           <div className="section-tag">Learning</div>
           <h1 className="topic-hero-title">{topic.title}</h1>
-          {loading ? (
-            <Skeleton className="topic-skel-overview" />
-          ) : (
-            <p className="topic-hero-overview">{content.overview}</p>
-          )}
+          <p className="topic-hero-overview">{content.overview}</p>
         </div>
       </div>
-
-      {/* Key takeaway pill */}
-      {!loading && content?.keyTakeaway && (
-        <div className="topic-takeaway">
-          <span className="topic-takeaway-label">✦ Key insight</span>
-          <span>{content.keyTakeaway}</span>
-        </div>
-      )}
-      {loading && <Skeleton className="topic-skel-takeaway" />}
 
       {/* Steps */}
       <section className="topic-block topic-block-steps">
         <h3 className="topic-block-heading">
           <span className="topic-block-num">Step by step</span>
         </h3>
-        {loading ? (
-          <div className="topic-skel-list">
-            {[1,2,3,4].map((i) => <Skeleton key={i} className="topic-skel-line" />)}
-          </div>
-        ) : (
-          <ol className="topic-steps-list">
-            {content.steps.map((step, i) => (
-              <li key={i} className="topic-step-item">
-                <span className="topic-step-badge">{i + 1}</span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
-        )}
+        <ol className="topic-steps-list">
+          {content.steps.map((step, i) => (
+            <li key={i} className="topic-step-item">
+              <span className="topic-step-badge">{i + 1}</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
       </section>
 
       {/* Do / Don't */}
       <div className="topic-columns">
         <section className="topic-block topic-dos">
           <h3 className="topic-block-heading">✓ Do</h3>
-          {loading ? (
-            <div className="topic-skel-list">
-              {[1,2,3].map((i) => <Skeleton key={i} className="topic-skel-line" />)}
-            </div>
-          ) : (
-            <ul className="topic-checklist">
-              {content.dos.map((item, i) => (
-                <li key={i} className="topic-checklist-item topic-do-item">
-                  <span className="topic-check-icon">✓</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="topic-checklist">
+            {content.dos.map((item, i) => (
+              <li key={i} className="topic-checklist-item topic-do-item">
+                <span className="topic-check-icon">✓</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="topic-block topic-donts">
           <h3 className="topic-block-heading">✕ Don&apos;t</h3>
-          {loading ? (
-            <div className="topic-skel-list">
-              {[1,2,3].map((i) => <Skeleton key={i} className="topic-skel-line" />)}
-            </div>
-          ) : (
-            <ul className="topic-checklist">
-              {content.donts.map((item, i) => (
-                <li key={i} className="topic-checklist-item topic-dont-item">
-                  <span className="topic-check-icon">✕</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="topic-checklist">
+            {content.donts.map((item, i) => (
+              <li key={i} className="topic-checklist-item topic-dont-item">
+                <span className="topic-check-icon">✕</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
 

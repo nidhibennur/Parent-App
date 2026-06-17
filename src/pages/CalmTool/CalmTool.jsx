@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import BreathingAnimation from "../../components/calm/BreathingAnimation";
 import CalmTimer from "../../components/calm/CalmTimer";
-import { useAuth } from "../../context/AuthContext";
 
 const PROMPTS = [
   "Notice your feet on the floor.",
@@ -14,26 +13,8 @@ const PROMPTS = [
 ];
 
 const CalmTool = () => {
-  const { profile } = useAuth();
   const [breathingActive, setBreathingActive] = useState(false);
   const [promptIndex, setPromptIndex] = useState(0);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-
-  async function fetchAiPrompt() {
-    setAiLoading(true);
-    setAiPrompt("");
-    try {
-      const res = await fetch("http://localhost:4000/api/calm-prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile }),
-      });
-      const data = await res.json();
-      setAiPrompt(data.prompt || "");
-    } catch { /* noop */ }
-    setAiLoading(false);
-  }
 
   return (
     <main className="page-content calm-tools-page">
@@ -92,23 +73,15 @@ const CalmTool = () => {
           </div>
         </div>
         <blockquote className="relaxation-prompt">
-          {aiPrompt || PROMPTS[promptIndex]}
+          {PROMPTS[promptIndex]}
         </blockquote>
         <div className="calm-prompt-actions">
           <button
             type="button"
-            className="btn-secondary"
-            onClick={() => { setAiPrompt(""); setPromptIndex((i) => (i + 1) % PROMPTS.length); }}
+            className="btn-primary"
+            onClick={() => setPromptIndex((i) => (i + 1) % PROMPTS.length)}
           >
             Next prompt
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={aiLoading}
-            onClick={fetchAiPrompt}
-          >
-            {aiLoading ? "…" : "✨ AI prompt"}
           </button>
         </div>
       </section>
