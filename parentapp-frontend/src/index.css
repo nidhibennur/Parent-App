@@ -1922,9 +1922,112 @@ body {
   margin-bottom: 12px;
 }
 
+.gpt-topbar-quick-btn {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+
+  background: linear-gradient(
+    283deg,
+    #6aba7d,
+    #b6db93,
+    #d0db93,
+    #93dbbf,
+    #93d4db
+  );
+  background-size: 1000% 1000%;
+
+  -webkit-animation: AnimationName 59s ease infinite;
+  -moz-animation: AnimationName 59s ease infinite;
+  -o-animation: AnimationName 59s ease infinite;
+  animation: AnimationName 59s ease infinite;
+
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+@-webkit-keyframes AnimationName {
+  0% { background-position: 13% 0%; }
+  50% { background-position: 88% 100%; }
+  100% { background-position: 13% 0%; }
+}
+
+@-moz-keyframes AnimationName {
+  0% { background-position: 13% 0%; }
+  50% { background-position: 88% 100%; }
+  100% { background-position: 13% 0%; }
+}
+
+@-o-keyframes AnimationName {
+  0% { background-position: 13% 0%; }
+  50% { background-position: 88% 100%; }
+  100% { background-position: 13% 0%; }
+}
+
+@keyframes AnimationName {
+  0% { background-position: 13% 0%; }
+  50% { background-position: 88% 100%; }
+  100% { background-position: 13% 0%; }
+}
+
+.mobile-qa-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 200;
+}
+
+.mobile-qa-drawer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 90vw;
+  background: var(--white);
+  padding: 0 14px 24px;
+  overflow-y: auto;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+}
+
+.mobile-qa-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.mobile-qa-header button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
 @media (max-width: 1024px) {
   .gpt-right-panel {
     display: none;
+  }
+  .gpt-topbar-quick-btn {
+    display: flex;
+  }
+  .mobile-qa-overlay {
+    display: block;
   }
 }
 

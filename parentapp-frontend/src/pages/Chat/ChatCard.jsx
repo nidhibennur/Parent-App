@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Mic, SendHorizontal, Square, Bot, Copy, Check } from "lucide-react";
+import { Mic, SendHorizontal, Square, Bot, Copy, Check, Zap, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CHAT_SUGGESTIONS } from "../../data/quickActions";
@@ -60,6 +60,7 @@ const ChatCard = () => {
   const [chats, setChats] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileQuickActionsOpen, setMobileQuickActionsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
   const [typing, setTyping] = useState(false);
@@ -125,22 +126,11 @@ const ChatCard = () => {
     })();
   }, []);
 
-  useEffect(() => {
-    if (!pendingSendRef.current || !activeId) return;
-    const msg = pendingSendRef.current;
-    pendingSendRef.current = null;
-    sendText(msg);
-  }, [activeId]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
   const addMessage = (text, isUser = true, isAudio = false) => {
     updateActiveMessages((prev) => [...prev, { text, user: isUser, audio: isAudio }]);
   };
 
-  const sendText = async (text) => {
+  const sendText = useCallback(async (text) => {
     if (!text?.trim() || !activeId) return;
 
     const userMsg = { text: text.trim(), user: true, audio: false };
@@ -192,6 +182,7 @@ const ChatCard = () => {
 
         const aiMsg = { text: accumulated, user: false, audio: false };
         const updatedMessages = [...prevMessages, userMsg, aiMsg];
+        const now = Date.now();
 
         const isFirstMessage = !prevMessages.some((m) => m.user);
         let title = deriveTitle(updatedMessages);
@@ -211,7 +202,7 @@ const ChatCard = () => {
 
         setChats((prev) => {
           const next = prev.map((c) =>
-            c.id === activeId ? { ...c, title, updatedAt: Date.now() } : c
+            c.id === activeId ? { ...c, title, updatedAt: now } : c
           );
           saveChatStore(next, activeId);
           return next;
@@ -222,8 +213,8 @@ const ChatCard = () => {
           title,
           topic: activeChat?.topic ?? null,
           messages: updatedMessages,
-          updatedAt: Date.now(),
-          createdAt: activeChat?.createdAt ?? Date.now(),
+          updatedAt: now,
+          createdAt: activeChat?.createdAt ?? now,
         });
       }
     } catch {
@@ -231,7 +222,18 @@ const ChatCard = () => {
       setStreamingText("");
       setLastFailedText(text.trim());
     }
-  };
+  }, [activeId, activeChat, profile, updateActiveMessages]);
+
+  useEffect(() => {
+    if (!pendingSendRef.current || !activeId) return;
+    const msg = pendingSendRef.current;
+    pendingSendRef.current = null;
+    sendText(msg);
+  }, [activeId, sendText]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const sendMessage = () => sendText(input);
 
@@ -338,6 +340,15 @@ const ChatCard = () => {
           {topic && (
             <span className="gpt-topbar-topic">{topic.replace(/-/g, " ")}</span>
           )}
+          <button
+            type="button"
+            className="gpt-topbar-quick-btn"
+            onClick={() => setMobileQuickActionsOpen(true)}
+            aria-label="Quick actions"
+          >
+            <Zap size={18} />
+            <span>Quick</span>
+          </button>
         </header>
 
         <div className="gpt-messages">
@@ -451,6 +462,25 @@ const ChatCard = () => {
       <aside className="gpt-right-panel">
         <QuickActionSidebar onQuickAction={handleQuickAction} />
       </aside>
+
+      {mobileQuickActionsOpen && (
+        <div className="mobile-qa-overlay" onClick={() => setMobileQuickActionsOpen(false)}>
+          <div className="mobile-qa-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="mobile-qa-header">
+              <span>Quick Actions</span>
+              <button type="button" onClick={() => setMobileQuickActionsOpen(false)} aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <QuickActionSidebar
+              onQuickAction={(action) => {
+                handleQuickAction(action);
+                setMobileQuickActionsOpen(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
